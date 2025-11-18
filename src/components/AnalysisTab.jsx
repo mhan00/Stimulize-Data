@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { performTTest } from '../utils/dataProcessing';
+import { performAnalysis, performTTest } from '../utils/dataProcessing';
 
 const AnalysisTab = ({
   longFormatData,
@@ -25,8 +25,16 @@ const AnalysisTab = ({
     }
 
     try {
-      const results = performTTest(longFormatData);
-      setAnalysisResults(results);
+      // Use the enhanced performAnalysis function that matches R script
+      const analysisResults = performAnalysis(longFormatData);
+      
+      // Add t-test results if needed
+      if (analysisParams.type === 't-test' && analysisResults.summary.length > 0) {
+        const tTestResult = performTTest(longFormatData);
+        analysisResults.tTestResult = tTestResult.tTestResult;
+      }
+      
+      setAnalysisResults(analysisResults);
       setShowAnalysis(true);
       setError(null);
     } catch (err) {
@@ -35,31 +43,7 @@ const AnalysisTab = ({
     }
   };
 
-  const formatSummaryTable = (summary) => {
-    if (!summary || summary.length === 0) return null;
-
-    const stats = {
-      count: summary.length,
-      targetRatioMean: summary.reduce((sum, row) => sum + (row.target_ratio || 0), 0) / summary.length,
-      targetRatioSD: 0,
-      controlRatioMean: summary.reduce((sum, row) => sum + (row.control_ratio || 0), 0) / summary.length,
-      controlRatioSD: 0
-    };
-
-    // Calculate standard deviations
-    const targetRatios = summary.map(row => row.target_ratio || 0);
-    const controlRatios = summary.map(row => row.control_ratio || 0);
-    
-    stats.targetRatioSD = Math.sqrt(
-      targetRatios.reduce((sum, val) => sum + Math.pow(val - stats.targetRatioMean, 2), 0) / (targetRatios.length - 1)
-    );
-    
-    stats.controlRatioSD = Math.sqrt(
-      controlRatios.reduce((sum, val) => sum + Math.pow(val - stats.controlRatioMean, 2), 0) / (controlRatios.length - 1)
-    );
-
-    return stats;
-  };
+  // Remove duplicate formatSummaryTable - use stats from performAnalysis instead
 
   const renderSummary = () => {
     if (!showAnalysis) {
@@ -70,11 +54,11 @@ const AnalysisTab = ({
       return <p className="error">{error}</p>;
     }
 
-    if (!analysisResults) {
+    if (!analysisResults || !analysisResults.summary) {
       return <p>No analysis results available.</p>;
     }
 
-    const stats = formatSummaryTable(analysisResults.summary);
+    const { summary, stats } = analysisResults;
     
     if (!stats) {
       return <p>Unable to generate summary statistics.</p>;
@@ -93,23 +77,23 @@ const AnalysisTab = ({
           <tbody>
             <tr>
               <td>Number of Participants</td>
-              <td>{stats.count}</td>
+              <td>{summary.length}</td>
             </tr>
             <tr>
               <td>Target Ratio Mean</td>
-              <td>{stats.targetRatioMean.toFixed(4)}</td>
+              <td>{stats.target.mean.toFixed(4)}</td>
             </tr>
             <tr>
               <td>Target Ratio SD</td>
-              <td>{isNaN(stats.targetRatioSD) ? 'N/A' : stats.targetRatioSD.toFixed(4)}</td>
+              <td>{isNaN(stats.target.sd) ? 'N/A' : stats.target.sd.toFixed(4)}</td>
             </tr>
             <tr>
               <td>Control Ratio Mean</td>
-              <td>{stats.controlRatioMean.toFixed(4)}</td>
+              <td>{stats.control.mean.toFixed(4)}</td>
             </tr>
             <tr>
               <td>Control Ratio SD</td>
-              <td>{isNaN(stats.controlRatioSD) ? 'N/A' : stats.controlRatioSD.toFixed(4)}</td>
+              <td>{isNaN(stats.control.sd) ? 'N/A' : stats.control.sd.toFixed(4)}</td>
             </tr>
           </tbody>
         </table>
@@ -129,7 +113,7 @@ const AnalysisTab = ({
               </tr>
             </thead>
             <tbody>
-              {analysisResults.summary.slice(0, 20).map((row, index) => (
+              {summary.slice(0, 20).map((row, index) => (
                 <tr key={index}>
                   <td>{row.ID}</td>
                   <td>{row.k_0}</td>
@@ -142,8 +126,8 @@ const AnalysisTab = ({
               ))}
             </tbody>
           </table>
-          {analysisResults.summary.length > 20 && (
-            <p>Showing first 20 rows of {analysisResults.summary.length} total participants</p>
+          {summary.length > 20 && (
+            <p>Showing first 20 rows of {summary.length} total participants</p>
           )}
         </div>
       </div>

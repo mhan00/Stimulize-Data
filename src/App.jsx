@@ -5,7 +5,7 @@ import _ from 'lodash';
 import DataTab from './components/DataTab';
 import AnalysisTab from './components/AnalysisTab';
 import PlotTab from './components/PlotTab';
-import { processData, applyDataCleaning, performTTest } from './utils/dataProcessing';
+import { processData, applyDataCleaning, performAnalysis } from './utils/dataProcessing';
 import './App.css';
 
 function App() {
@@ -65,12 +65,15 @@ function App() {
         try {
           let data = results.data;
           
-          // Add ID column if it doesn't exist
+          // Add ID column if it doesn't exist (following R script logic)
           if (!data[0]?.ID) {
+            // Create ID column with NA for first row, then sequential numbers
             data = data.map((row, index) => ({
-              ID: index + 1,
+              ID: index === 0 ? null : index, // First row gets null, others get sequential
               ...row
             }));
+            // Remove the first row (following R script logic)
+            data = data.slice(1);
           }
 
           // Remove ignored variables

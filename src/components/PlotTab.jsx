@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ErrorBar } from 'recharts';
-import { performTTest } from '../utils/dataProcessing';
+import { performAnalysis } from '../utils/dataProcessing';
 
 const PlotTab = ({
   longFormatData,
@@ -26,47 +26,31 @@ const PlotTab = ({
     }
 
     try {
-      const results = performTTest(longFormatData);
+      const results = performAnalysis(longFormatData);
       
-      if (!results.summary || results.summary.length === 0) {
+      if (!results.summary || results.summary.length === 0 || !results.stats) {
         setError('No valid data for plotting.');
         return;
       }
 
-      // Calculate plot data
-      const targetRatios = results.summary.map(row => row.target_ratio).filter(r => !isNaN(r));
-      const controlRatios = results.summary.map(row => row.control_ratio).filter(r => !isNaN(r));
+      // Use the consolidated statistics from performAnalysis
+      const { stats } = results;
 
-      if (targetRatios.length === 0 || controlRatios.length === 0) {
-        setError('Insufficient data for plotting.');
-        return;
-      }
-
-      const targetMean = targetRatios.reduce((sum, val) => sum + val, 0) / targetRatios.length;
-      const controlMean = controlRatios.reduce((sum, val) => sum + val, 0) / controlRatios.length;
-
-      const targetSD = Math.sqrt(
-        targetRatios.reduce((sum, val) => sum + Math.pow(val - targetMean, 2), 0) / (targetRatios.length - 1)
-      );
-      const controlSD = Math.sqrt(
-        controlRatios.reduce((sum, val) => sum + Math.pow(val - controlMean, 2), 0) / (controlRatios.length - 1)
-      );
-
-      const targetSE = targetSD / Math.sqrt(targetRatios.length);
-      const controlSE = controlSD / Math.sqrt(controlRatios.length);
+      const targetSE = stats.target.sd / Math.sqrt(stats.target.n);
+      const controlSE = stats.control.sd / Math.sqrt(stats.control.n);
 
       const chartData = [
         {
           group: 'Target',
-          mean: targetMean,
+          mean: stats.target.mean,
           se: targetSE,
-          n: targetRatios.length
+          n: stats.target.n
         },
         {
           group: 'Control',
-          mean: controlMean,
+          mean: stats.control.mean,
           se: controlSE,
-          n: controlRatios.length
+          n: stats.control.n
         }
       ];
 

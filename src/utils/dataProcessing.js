@@ -110,20 +110,25 @@ export const processData = async (data, format) => {
     });
   }
 
-  // Create long format data
+  // Create long format data (following R script logic)
   let longFormatData = null;
-  const trialColumns = Object.keys(processedData[0] || {}).filter(col =>
-    col.includes('_Trial_')
-  );
+  const trialColumns = [
+    ...Object.keys(processedData[0] || {}).filter(col => col.startsWith('sptResponse_Trial_')),
+    ...Object.keys(processedData[0] || {}).filter(col => col.startsWith('ShuffleResult_Trial_')),
+    ...Object.keys(processedData[0] || {}).filter(col => col.startsWith('sptResponseDuration_Trial_'))
+  ];
 
   if (trialColumns.length > 0) {
     longFormatData = [];
     
     processedData.forEach(row => {
-      // Get unique trial numbers
+      // Get unique trial numbers from all trial columns
       const trialNumbers = [...new Set(
-        trialColumns.map(col => col.split('_Trial_')[1]).filter(Boolean)
-      )];
+        trialColumns.map(col => {
+          const match = col.match(/_Trial_(\d+)$/);
+          return match ? match[1] : null;
+        }).filter(Boolean)
+      )].sort((a, b) => parseInt(a) - parseInt(b));
       
       trialNumbers.forEach((trialNum, index) => {
         const longRow = {
@@ -132,24 +137,39 @@ export const processData = async (data, format) => {
           record: index + 1
         };
         
-        // Add non-trial columns
+        // Add non-trial columns (exclude original raw columns and trial columns)
+        const excludeColumns = new Set([
+          'sptResponses', 'shuffleResult', 'sptResponseDurations', 'primeResult',
+          'shuffleStimuli1', 'shuffleStimuli2', 'shuffleStimuli3',
+          ...trialColumns
+        ]);
+        
         Object.keys(row).forEach(key => {
-          if (!key.includes('_Trial_')) {
+          if (!excludeColumns.has(key)) {
             longRow[key] = row[key];
           }
         });
         
-        // Add trial-specific columns
-        trialColumns.forEach(col => {
-          if (col.endsWith(`_Trial_${trialNum}`)) {
-            const baseColName = col.replace(`_Trial_${trialNum}`, '');
-            longRow[baseColName] = row[col];
-          }
-        });
+        // Add trial-specific columns with their base names
+        const trialSuffix = `_Trial_${trialNum}`;
+        if (row[`sptResponse${trialSuffix}`] !== undefined) {
+          longRow.sptResponse = row[`sptResponse${trialSuffix}`];
+        }
+        if (row[`ShuffleResult${trialSuffix}`] !== undefined) {
+          longRow.ShuffleResult = row[`ShuffleResult${trialSuffix}`];
+        }
+        if (row[`sptResponseDuration${trialSuffix}`] !== undefined) {
+          longRow.sptResponseDuration = row[`sptResponseDuration${trialSuffix}`];
+        }
         
         longFormatData.push(longRow);
       });
     });
+    
+    // Filter out rows with empty sptResponse (following R script logic)
+    longFormatData = longFormatData.filter(row => 
+      row.sptResponse !== undefined && row.sptResponse !== null && row.sptResponse !== ''
+    );
   }
 
   // Return appropriate format
@@ -168,106 +188,103 @@ export const applyDataCleaning = (data, cleaningOptions) => {
   }
 
   let cleanedData = [...data];
+  const originalCount = cleanedData.length;
 
   // Remove incomplete responses
   if (cleaningOptions.removeIncompleteResponses) {
+    const beforeCount = cleanedData.length;
     cleanedData = cleanedData.filter(row => {
-      const status = parseFloat(row.Status);
-      const progress = parseFloat(row.Progress);
-      return status === 0 && progress === 100;
+      // Check for Status column (could be 'Status' or 'status')
+      const statusKey = Object.keys(row).find(key => key.toLowerCase() === 'status');
+      const progressKey = Object.keys(row).find(key => key.toLowerCase() === 'progress');
+      
+      if (!statusKey || !progressKey) {
+        // If Status/Progress columns don't exist, keep the row
+        return true;
+      }
+      
+      const status = parseFloat(row[statusKey]);
+      const progress = parseFloat(row[progressKey]);
+      return !isNaN(status) && !isNaN(progress) && status === 0 && progress === 100;
     });
+    console.log(`Incomplete responses filter: ${beforeCount} -> ${cleanedData.length} rows`);
   }
 
   // IQR filtering
-  if (cleaningOptions.participantIqr && cleanedData[0]?.['Duration..in.seconds.']) {
-    const durations = cleanedData
-      .map(row => parseFloat(row['Duration..in.seconds.']))
-      .filter(d => !isNaN(d))
-      .sort((a, b) => a - b);
+  if (cleaningOptions.participantIqr) {
+    const beforeCount = cleanedData.length;
+    // Find duration column (could be 'Duration..in.seconds.' or similar)
+    const durationKey = Object.keys(cleanedData[0] || {}).find(key => 
+      key.toLowerCase().includes('duration') && key.toLowerCase().includes('second')
+    );
     
-    if (durations.length > 0) {
-      const q1Index = Math.floor(durations.length * 0.25);
-      const q3Index = Math.floor(durations.length * 0.75);
-      const q1 = durations[q1Index];
-      const q3 = durations[q3Index];
-      const iqr = q3 - q1;
-      const lowerBound = q1 - 1.5 * iqr;
-      const upperBound = q3 + 1.5 * iqr;
+    if (durationKey) {
+      const durations = cleanedData
+        .map(row => parseFloat(row[durationKey]))
+        .filter(d => !isNaN(d))
+        .sort((a, b) => a - b);
       
-      cleanedData = cleanedData.filter(row => {
-        const duration = parseFloat(row['Duration..in.seconds.']);
-        return !isNaN(duration) && duration >= lowerBound && duration <= upperBound;
-      });
+      if (durations.length > 0) {
+        const q1Index = Math.floor(durations.length * 0.25);
+        const q3Index = Math.floor(durations.length * 0.75);
+        const q1 = durations[q1Index];
+        const q3 = durations[q3Index];
+        const iqr = q3 - q1;
+        const lowerBound = q1 - 1.5 * iqr;
+        const upperBound = q3 + 1.5 * iqr;
+        
+        cleanedData = cleanedData.filter(row => {
+          const duration = parseFloat(row[durationKey]);
+          return !isNaN(duration) && duration >= lowerBound && duration <= upperBound;
+        });
+      }
     }
+    console.log(`IQR filter: ${beforeCount} -> ${cleanedData.length} rows`);
   }
 
   // Custom filtering
-  if (cleaningOptions.participantCustom && cleanedData[0]?.['Duration..in.seconds.']) {
-    cleanedData = cleanedData.filter(row => {
-      const duration = parseFloat(row['Duration..in.seconds.']);
-      return !isNaN(duration) && 
-             duration >= cleaningOptions.thresholdLower && 
-             duration <= cleaningOptions.thresholdUpper;
-    });
+  if (cleaningOptions.participantCustom) {
+    const beforeCount = cleanedData.length;
+    // Find duration column
+    const durationKey = Object.keys(cleanedData[0] || {}).find(key => 
+      key.toLowerCase().includes('duration') && key.toLowerCase().includes('second')
+    );
+    
+    if (durationKey) {
+      cleanedData = cleanedData.filter(row => {
+        const duration = parseFloat(row[durationKey]);
+        return !isNaN(duration) && 
+               duration >= cleaningOptions.thresholdLower && 
+               duration <= cleaningOptions.thresholdUpper;
+      });
+    }
+    console.log(`Custom filter: ${beforeCount} -> ${cleanedData.length} rows`);
   }
 
+  // If no cleaning options are selected, return original data
+  if (!cleaningOptions.removeIncompleteResponses && 
+      !cleaningOptions.participantIqr && 
+      !cleaningOptions.participantCustom) {
+    console.log('No cleaning options selected, returning original data');
+    return data;
+  }
+
+  console.log(`Total cleaning: ${originalCount} -> ${cleanedData.length} rows`);
   return cleanedData;
 };
 
-// Statistical analysis functions
-export const performTTest = (data) => {
-  if (!data || data.length === 0) {
-    throw new Error('No data provided for analysis');
+// Enhanced t-test function for use with performAnalysis results
+export const performTTest = (longFormatData) => {
+  // Use performAnalysis to get the processed data, then run t-test
+  const analysisResults = performAnalysis(longFormatData);
+  
+  if (!analysisResults.summary || analysisResults.summary.length === 0) {
+    throw new Error('No analysis data available for t-test');
   }
 
-  // Check for required columns
-  const requiredCols = ['ID', 'sptResponse', 'ShuffleResult'];
-  const missingCols = requiredCols.filter(col => !data[0]?.hasOwnProperty(col));
-  
-  if (missingCols.length > 0) {
-    throw new Error(`Missing columns needed for analysis: ${missingCols.join(', ')}`);
-  }
-
-  // Group data by ID, sptResponse, and ShuffleResult
-  const grouped = _.groupBy(data, row => `${row.ID}_${row.sptResponse}_${row.ShuffleResult}`);
-  
-  const summary = Object.entries(grouped).map(([key, rows]) => {
-    const [id, response, shuffle] = key.split('_');
-    return {
-      ID: id,
-      sptResponse: response,
-      ShuffleResult: shuffle,
-      count: rows.length
-    };
-  });
-
-  // Pivot to wide format
-  const pivoted = {};
-  summary.forEach(row => {
-    if (!pivoted[row.ID]) {
-      pivoted[row.ID] = { ID: row.ID };
-    }
-    pivoted[row.ID][`${row.sptResponse}_${row.ShuffleResult}`] = row.count;
-  });
-
-  const tableClean = Object.values(pivoted).map(row => ({
-    ID: row.ID,
-    k_0: row.k_0 || 0,
-    d_0: row.d_0 || 0,
-    k_1: row.k_1 || 0,
-    d_1: row.d_1 || 0
-  })).filter(row => row.k_0 + row.d_0 > 0 && row.k_1 + row.d_1 > 0);
-
-  // Calculate ratios
-  const ratios = tableClean.map(row => ({
-    ...row,
-    target_ratio: row.k_1 / (row.k_1 + row.d_1),
-    control_ratio: row.k_0 / (row.k_0 + row.d_0)
-  }));
-
-  // Perform t-test
-  const targetRatios = ratios.map(r => r.target_ratio).filter(r => !isNaN(r));
-  const controlRatios = ratios.map(r => r.control_ratio).filter(r => !isNaN(r));
+  // Extract ratios for t-test
+  const targetRatios = analysisResults.summary.map(r => r.target_ratio).filter(r => !isNaN(r));
+  const controlRatios = analysisResults.summary.map(r => r.control_ratio).filter(r => !isNaN(r));
 
   if (targetRatios.length === 0 || controlRatios.length === 0) {
     throw new Error('Insufficient data for t-test');
@@ -276,7 +293,7 @@ export const performTTest = (data) => {
   const tTestResult = tTest(targetRatios, controlRatios);
 
   return {
-    summary: ratios,
+    summary: analysisResults.summary,
     tTestResult: tTestResult
   };
 };
@@ -324,4 +341,108 @@ const betaIncomplete = (a, b, x) => {
   
   // Simple approximation - in a real implementation you'd want a more accurate beta function
   return Math.pow(x, a) * Math.pow(1 - x, b) / (a + b);
+};
+
+// Enhanced analysis function following R script logic
+export const performAnalysis = (longFormatData) => {
+  if (!longFormatData || longFormatData.length === 0) {
+    throw new Error('No long format data provided for analysis');
+  }
+
+  // Check if necessary columns exist
+  const requiredCols = ['ID', 'sptResponse', 'ShuffleResult'];
+  const missingCols = requiredCols.filter(col => !longFormatData[0]?.hasOwnProperty(col));
+  
+  if (missingCols.length > 0) {
+    throw new Error(`Missing columns needed for analysis: ${missingCols.join(', ')}`);
+  }
+
+  try {
+    // Group by ID, sptResponse, ShuffleResult and count occurrences
+    const grouped = {};
+    
+    longFormatData.forEach(row => {
+      if (row.sptResponse !== undefined && row.sptResponse !== null && row.sptResponse !== '') {
+        const key = `${row.ID}_${row.sptResponse}_${row.ShuffleResult}`;
+        grouped[key] = (grouped[key] || 0) + 1;
+      }
+    });
+
+    // Convert to table format
+    const table1 = [];
+    Object.keys(grouped).forEach(key => {
+      const [ID, sptResponse, ShuffleResult] = key.split('_');
+      table1.push({
+        ID: ID,
+        sptResponse: sptResponse,
+        ShuffleResult: ShuffleResult,
+        count: grouped[key]
+      });
+    });
+
+    // Pivot wider to get k_0, d_0, k_1, d_1 columns
+    const pivoted = {};
+    table1.forEach(row => {
+      if (!pivoted[row.ID]) {
+        pivoted[row.ID] = { ID: row.ID };
+      }
+      
+      const colName = `${row.sptResponse === 'k' ? 'k' : 'd'}_${row.ShuffleResult}`;
+      pivoted[row.ID][colName] = row.count;
+    });
+
+    // Convert to array and fill missing values with 0
+    const table1clean = Object.values(pivoted).map(row => ({
+      ID: row.ID,
+      k_0: row.k_0 || 0,
+      d_0: row.d_0 || 0,
+      k_1: row.k_1 || 0,
+      d_1: row.d_1 || 0
+    }));
+
+    // Calculate ratios
+    const analysisData = table1clean.map(row => ({
+      ...row,
+      target_ratio: row.k_1 / (row.k_1 + row.d_1),
+      control_ratio: row.k_0 / (row.k_0 + row.d_0)
+    })).filter(row => {
+      // Filter out rows where both ratios are 0 or both are 1
+      return !((row.control_ratio === 0 && row.target_ratio === 0) || 
+               (row.control_ratio === 1 && row.target_ratio === 1));
+    });
+
+    return {
+      summary: analysisData,
+      stats: calculateSummaryStats(analysisData)
+    };
+  } catch (error) {
+    throw new Error(`Error in analysis: ${error.message}`);
+  }
+};
+
+// Calculate summary statistics
+const calculateSummaryStats = (data) => {
+  if (data.length === 0) return null;
+
+  const targetRatios = data.map(row => row.target_ratio).filter(val => !isNaN(val));
+  const controlRatios = data.map(row => row.control_ratio).filter(val => !isNaN(val));
+
+  const targetMean = targetRatios.reduce((a, b) => a + b, 0) / targetRatios.length;
+  const controlMean = controlRatios.reduce((a, b) => a + b, 0) / controlRatios.length;
+  
+  const targetSD = Math.sqrt(targetRatios.reduce((sum, val) => sum + Math.pow(val - targetMean, 2), 0) / targetRatios.length);
+  const controlSD = Math.sqrt(controlRatios.reduce((sum, val) => sum + Math.pow(val - controlMean, 2), 0) / controlRatios.length);
+
+  return {
+    target: {
+      mean: targetMean,
+      sd: targetSD,
+      n: targetRatios.length
+    },
+    control: {
+      mean: controlMean,
+      sd: controlSD,
+      n: controlRatios.length
+    }
+  };
 };
