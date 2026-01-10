@@ -182,7 +182,7 @@ export const processData = async (data, format) => {
 };
 
 // Data cleaning function
-export const applyDataCleaning = (data, cleaningOptions) => {
+export const applyDataCleaning = (data, cleaningOptions, format = 'Wide') => {
   if (!data || data.length === 0) {
     throw new Error('No data provided for cleaning');
   }
@@ -208,6 +208,29 @@ export const applyDataCleaning = (data, cleaningOptions) => {
       return !isNaN(status) && !isNaN(progress) && status === 0 && progress === 100;
     });
     console.log(`Incomplete responses filter: ${beforeCount} -> ${cleanedData.length} rows`);
+  }
+
+  // Remove low quality responses (participants who select same option for all trials)
+  if (cleaningOptions.removeLowQualResponses) {
+    const beforeCount = cleanedData.length;
+    const sptResponseColumns = Object.keys(cleanedData[0] || {}).filter(key => 
+      key.startsWith('sptResponse_Trial_')
+    );
+    
+    if (sptResponseColumns.length > 0) {
+      cleanedData = cleanedData.filter(row => {
+        const responses = sptResponseColumns
+          .map(col => row[col])
+          .filter(val => val !== undefined && val !== null && val !== '');
+        
+        if (responses.length === 0) return true; // Keep if no responses
+        
+        // Count unique responses
+        const uniqueResponses = new Set(responses);
+        return uniqueResponses.size > 1; // Keep only if more than 1 unique response
+      });
+    }
+    console.log(`Low quality responses filter: ${beforeCount} -> ${cleanedData.length} rows`);
   }
 
   // IQR filtering
@@ -261,16 +284,83 @@ export const applyDataCleaning = (data, cleaningOptions) => {
     console.log(`Custom filter: ${beforeCount} -> ${cleanedData.length} rows`);
   }
 
+  // Regenerate long format data from cleaned wide data (following R script logic)
+  const trialColumns = [
+    ...Object.keys(cleanedData[0] || {}).filter(col => col.startsWith('sptResponse_Trial_')),
+    ...Object.keys(cleanedData[0] || {}).filter(col => col.startsWith('ShuffleResult_Trial_')),
+    ...Object.keys(cleanedData[0] || {}).filter(col => col.startsWith('sptResponseDuration_Trial_'))
+  ];
+
+  let longFormatData = null;
+  if (trialColumns.length > 0) {
+    longFormatData = [];
+    
+    cleanedData.forEach(row => {
+      // Get unique trial numbers from all trial columns
+      const trialNumbers = [...new Set(
+        trialColumns.map(col => {
+          const match = col.match(/_Trial_(\d+)$/);
+          return match ? match[1] : null;
+        }).filter(Boolean)
+      )].sort((a, b) => parseInt(a) - parseInt(b));
+      
+      trialNumbers.forEach((trialNum, index) => {
+        const longRow = {
+          ID: row.ID,
+          trial: trialNum,
+          record: index + 1
+        };
+        
+        // Add non-trial columns (exclude original raw columns and trial columns)
+        const excludeColumns = new Set([
+          'sptResponses', 'shuffleResult', 'sptResponseDurations', 'primeResult',
+          'shuffleStimuli1', 'shuffleStimuli2', 'shuffleStimuli3',
+          ...trialColumns
+        ]);
+        
+        Object.keys(row).forEach(key => {
+          if (!excludeColumns.has(key)) {
+            longRow[key] = row[key];
+          }
+        });
+        
+        // Add trial-specific columns with their base names
+        const trialSuffix = `_Trial_${trialNum}`;
+        if (row[`sptResponse${trialSuffix}`] !== undefined) {
+          longRow.sptResponse = row[`sptResponse${trialSuffix}`];
+        }
+        if (row[`ShuffleResult${trialSuffix}`] !== undefined) {
+          longRow.ShuffleResult = row[`ShuffleResult${trialSuffix}`];
+        }
+        if (row[`sptResponseDuration${trialSuffix}`] !== undefined) {
+          longRow.sptResponseDuration = row[`sptResponseDuration${trialSuffix}`];
+        }
+        
+        longFormatData.push(longRow);
+      });
+    });
+    
+    // Filter out rows with empty sptResponse
+    longFormatData = longFormatData.filter(row => 
+      row.sptResponse !== undefined && row.sptResponse !== null && row.sptResponse !== ''
+    );
+  }
+
   // If no cleaning options are selected, return original data
   if (!cleaningOptions.removeIncompleteResponses && 
+      !cleaningOptions.removeLowQualResponses &&
       !cleaningOptions.participantIqr && 
       !cleaningOptions.participantCustom) {
     console.log('No cleaning options selected, returning original data');
-    return data;
+    return { cleanedData: data, longFormatData: null };
   }
 
   console.log(`Total cleaning: ${originalCount} -> ${cleanedData.length} rows`);
-  return cleanedData;
+  
+  return {
+    cleanedData: format === 'Long' && longFormatData ? longFormatData : cleanedData,
+    longFormatData: longFormatData
+  };
 };
 
 // Enhanced t-test function for use with performAnalysis results
@@ -298,7 +388,7 @@ export const performTTest = (longFormatData) => {
   };
 };
 
-// Simple t-test implementation
+// Paired t-test implementation (following R script update)
 const tTest = (sample1, sample2) => {
   const n1 = sample1.length;
   const n2 = sample2.length;
@@ -306,23 +396,37 @@ const tTest = (sample1, sample2) => {
   if (n1 === 0 || n2 === 0) {
     throw new Error('Cannot perform t-test with empty samples');
   }
+  
+  if (n1 !== n2) {
+    throw new Error('Paired t-test requires equal sample sizes');
+  }
 
-  const mean1 = sample1.reduce((sum, val) => sum + val, 0) / n1;
-  const mean2 = sample2.reduce((sum, val) => sum + val, 0) / n2;
+  const n = n1; // Since they're equal for paired test
+  const mean1 = sample1.reduce((sum, val) => sum + val, 0) / n;
+  const mean2 = sample2.reduce((sum, val) => sum + val, 0) / n;
   
-  const var1 = sample1.reduce((sum, val) => sum + Math.pow(val - mean1, 2), 0) / (n1 - 1);
-  const var2 = sample2.reduce((sum, val) => sum + Math.pow(val - mean2, 2), 0) / (n2 - 1);
+  // Calculate differences for paired t-test
+  const differences = sample1.map((val, i) => val - sample2[i]);
+  const meanDiff = differences.reduce((sum, val) => sum + val, 0) / n;
   
-  const pooledSE = Math.sqrt(var1 / n1 + var2 / n2);
-  const tStat = (mean1 - mean2) / pooledSE;
-  const df = n1 + n2 - 2;
+  // Calculate standard deviation of differences
+  const varianceDiff = differences.reduce((sum, val) => sum + Math.pow(val - meanDiff, 2), 0) / (n - 1);
+  const standardError = Math.sqrt(varianceDiff / n);
+  
+  const tStatistic = meanDiff / standardError;
+  const degreesOfFreedom = n - 1; // Correct df for paired t-test
+  
+  // Calculate p-value using t-distribution approximation
+  const pValue = 2 * (1 - tDistribution(Math.abs(tStatistic), degreesOfFreedom));
 
   return {
     mean1,
     mean2,
-    tStatistic: tStat,
-    degreesOfFreedom: df,
-    pValue: 2 * (1 - tDistribution(Math.abs(tStat), df)) // Two-tailed p-value approximation
+    meanDifference: meanDiff,
+    tStatistic: tStatistic,
+    degreesOfFreedom: degreesOfFreedom,
+    pValue: Math.max(0, Math.min(1, pValue)),
+    method: "Paired t-test"
   };
 };
 
@@ -400,16 +504,12 @@ export const performAnalysis = (longFormatData) => {
       d_1: row.d_1 || 0
     }));
 
-    // Calculate ratios
+    // Calculate ratios (remove filter - moved to data cleaning)
     const analysisData = table1clean.map(row => ({
       ...row,
       target_ratio: row.k_1 / (row.k_1 + row.d_1),
       control_ratio: row.k_0 / (row.k_0 + row.d_0)
-    })).filter(row => {
-      // Filter out rows where both ratios are 0 or both are 1
-      return !((row.control_ratio === 0 && row.target_ratio === 0) || 
-               (row.control_ratio === 1 && row.target_ratio === 1));
-    });
+    }));
 
     return {
       summary: analysisData,

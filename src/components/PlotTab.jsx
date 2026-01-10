@@ -117,7 +117,7 @@ const PlotTab = ({
             />
             <Tooltip 
               formatter={(value, name) => [
-                name === 'mean' ? `Mean: ${value.toFixed(4)}` : value,
+                name === 'mean' ? `Mean: ${value.toFixed(2)}` : value,
                 name
               ]}
               labelFormatter={(label) => `Condition: ${label}`}
@@ -144,8 +144,8 @@ const PlotTab = ({
           <p><strong>Note:</strong> Error bars represent standard error (SE).</p>
           {plotData.map((item, index) => (
             <p key={index}>
-              <strong>{item.group}:</strong> Mean = {item.mean.toFixed(4)}, 
-              SE = {item.se.toFixed(4)}, N = {item.n}
+              <strong>{item.group}:</strong> Mean = {item.mean.toFixed(2)}, 
+              SE = {item.se.toFixed(2)}, N = {item.n}
             </p>
           ))}
         </div>

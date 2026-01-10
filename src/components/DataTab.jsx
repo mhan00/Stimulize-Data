@@ -220,6 +220,16 @@ const DataTab = ({
                 <label className="checkbox-label">
                   <input
                     type="checkbox"
+                    checked={cleaningOptions.removeLowQualResponses}
+                    onChange={(e) => handleCleaningOptionChange('removeLowQualResponses', e.target.checked)}
+                  />
+                  Remove Low Quality Responses
+                </label>
+                <p className="help-text">Removes participants who select the same option for all trials</p>
+                
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
                     checked={cleaningOptions.participantIqr}
                     onChange={(e) => handleCleaningOptionChange('participantIqr', e.target.checked)}
                   />

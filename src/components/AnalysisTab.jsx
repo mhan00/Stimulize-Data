@@ -81,19 +81,19 @@ const AnalysisTab = ({
             </tr>
             <tr>
               <td>Target Ratio Mean</td>
-              <td>{stats.target.mean.toFixed(4)}</td>
+              <td>{stats.target.mean.toFixed(2)}</td>
             </tr>
             <tr>
               <td>Target Ratio SD</td>
-              <td>{isNaN(stats.target.sd) ? 'N/A' : stats.target.sd.toFixed(4)}</td>
+              <td>{isNaN(stats.target.sd) ? 'N/A' : stats.target.sd.toFixed(2)}</td>
             </tr>
             <tr>
               <td>Control Ratio Mean</td>
-              <td>{stats.control.mean.toFixed(4)}</td>
+              <td>{stats.control.mean.toFixed(2)}</td>
             </tr>
             <tr>
               <td>Control Ratio SD</td>
-              <td>{isNaN(stats.control.sd) ? 'N/A' : stats.control.sd.toFixed(4)}</td>
+              <td>{isNaN(stats.control.sd) ? 'N/A' : stats.control.sd.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>
@@ -120,8 +120,8 @@ const AnalysisTab = ({
                   <td>{row.d_0}</td>
                   <td>{row.k_1}</td>
                   <td>{row.d_1}</td>
-                  <td>{row.target_ratio ? row.target_ratio.toFixed(4) : 'N/A'}</td>
-                  <td>{row.control_ratio ? row.control_ratio.toFixed(4) : 'N/A'}</td>
+                  <td>{row.target_ratio ? row.target_ratio.toFixed(2) : 'N/A'}</td>
+                  <td>{row.control_ratio ? row.control_ratio.toFixed(2) : 'N/A'}</td>
                 </tr>
               ))}
             </tbody>
@@ -151,25 +151,25 @@ const AnalysisTab = ({
 
     return (
       <div className="analysis-results">
-        <h5>Two-Sample t-Test Results</h5>
+        <h5>Paired t-Test Results</h5>
         <div className="test-results">
           <table className="stats-table">
             <tbody>
               <tr>
                 <td><strong>Target Condition Mean:</strong></td>
-                <td>{tTestResult.mean1.toFixed(6)}</td>
+                <td>{tTestResult.mean1.toFixed(2)}</td>
               </tr>
               <tr>
                 <td><strong>Control Condition Mean:</strong></td>
-                <td>{tTestResult.mean2.toFixed(6)}</td>
+                <td>{tTestResult.mean2.toFixed(2)}</td>
               </tr>
               <tr>
                 <td><strong>Mean Difference:</strong></td>
-                <td>{(tTestResult.mean1 - tTestResult.mean2).toFixed(6)}</td>
+                <td>{tTestResult.meanDifference ? tTestResult.meanDifference.toFixed(2) : (tTestResult.mean1 - tTestResult.mean2).toFixed(2)}</td>
               </tr>
               <tr>
                 <td><strong>t-statistic:</strong></td>
-                <td>{tTestResult.tStatistic.toFixed(6)}</td>
+                <td>{tTestResult.tStatistic.toFixed(2)}</td>
               </tr>
               <tr>
                 <td><strong>Degrees of Freedom:</strong></td>

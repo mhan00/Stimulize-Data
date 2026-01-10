@@ -26,7 +26,8 @@ function App() {
   const [selectedVars, setSelectedVars] = useState([]);
   const [format, setFormat] = useState('Wide');
   const [cleaningOptions, setCleaningOptions] = useState({
-    removeIncompleteResponses: false,
+    removeIncompleteResponses: true,
+    removeLowQualResponses: true,
     participantIqr: false,
     participantCustom: false,
     thresholdLower: 200,
@@ -153,21 +154,17 @@ function App() {
     if (!processedDataBeforeCleaning) return;
 
     try {
-      const cleaned = applyDataCleaning(processedDataBeforeCleaning, cleaningOptions);
-      setProcessedData(cleaned);
+      const result = applyDataCleaning(processedDataBeforeCleaning, cleaningOptions, format);
+      setProcessedData(result.cleanedData);
       
-      // Update long format data if needed
-      if (longFormatDataBeforeCleaning) {
-        const cleanedIds = cleaned.map(row => row.ID);
-        const cleanedLongFormat = longFormatDataBeforeCleaning.filter(row => 
-          cleanedIds.includes(row.ID)
-        );
-        setLongFormatData(cleanedLongFormat);
+      // Update long format data with regenerated data
+      if (result.longFormatData) {
+        setLongFormatData(result.longFormatData);
       }
       
       setShowAnalysis(false);
       setShowPlot(false);
-      alert(`Data cleaning completed. Rows remaining: ${cleaned.length}`);
+      alert(`Data cleaning completed. Rows remaining: ${result.cleanedData.length}`);
     } catch (error) {
       alert(`Error applying cleaning: ${error.message}`);
     }
@@ -217,7 +214,8 @@ function App() {
 
   const resetCleaningOptions = () => {
     setCleaningOptions({
-      removeIncompleteResponses: false,
+      removeIncompleteResponses: true,
+      removeLowQualResponses: true,
       participantIqr: false,
       participantCustom: false,
       thresholdLower: 200,
