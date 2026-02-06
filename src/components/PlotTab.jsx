@@ -90,7 +90,7 @@ const PlotTab = ({
 
     const yAxisDomain = plotParams.customYRange 
       ? [plotParams.yMin, plotParams.yMax] 
-      : ['dataMin - 0.1', 'dataMax + 0.1'];
+      : [0, 1];
 
     return (
       <div className="plot-container">

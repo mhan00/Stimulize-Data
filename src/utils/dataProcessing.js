@@ -430,21 +430,91 @@ const tTest = (sample1, sample2) => {
   };
 };
 
-// Simple t-distribution CDF approximation
+// Improved t-distribution CDF using beta distribution
 const tDistribution = (t, df) => {
-  // Simplified approximation for t-distribution CDF
-  // This is not as accurate as statistical libraries but provides a reasonable estimate
+  // Use Hill's algorithm for incomplete beta function (more accurate)
   const x = df / (df + t * t);
-  return 0.5 + 0.5 * Math.sign(t) * (1 - betaIncomplete(0.5 * df, 0.5, x));
+  const a = df / 2;
+  const b = 0.5;
+  
+  if (t >= 0) {
+    return 1 - 0.5 * incompleteBeta(x, a, b);
+  } else {
+    return 0.5 * incompleteBeta(x, a, b);
+  }
 };
 
-// Simplified beta incomplete function approximation
-const betaIncomplete = (a, b, x) => {
+// Improved incomplete beta function implementation
+const incompleteBeta = (x, a, b) => {
   if (x <= 0) return 0;
   if (x >= 1) return 1;
   
-  // Simple approximation - in a real implementation you'd want a more accurate beta function
-  return Math.pow(x, a) * Math.pow(1 - x, b) / (a + b);
+  // Use continued fraction approximation (more accurate than simple power approximation)
+  const lbeta = lnGamma(a) + lnGamma(b) - lnGamma(a + b);
+  const front = Math.exp(Math.log(x) * a + Math.log(1 - x) * b - lbeta) / a;
+  const f = continuedFraction(a, b, x);
+  return front * f / a;
+};
+
+// Log gamma function approximation
+const lnGamma = (x) => {
+  // Lanczos approximation
+  const coef = [
+    76.18009172947146,
+    -86.50532032941677,
+    24.01409824083091,
+    -1.231739572450155,
+    0.001208650973866179,
+    -0.000005395239384953
+  ];
+  
+  let y = x;
+  let tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  
+  for (let j = 0; j < 6; j++) {
+    ser += coef[j] / ++y;
+  }
+  
+  return -tmp + Math.log(2.5066282746310005 * ser / x);
+};
+
+// Continued fraction for incomplete beta
+const continuedFraction = (a, b, x, maxIterations = 200, epsilon = 1e-10) => {
+  const qab = a + b;
+  const qap = a + 1;
+  const qam = a - 1;
+  let c = 1;
+  let d = 1 - qab * x / qap;
+  
+  if (Math.abs(d) < 1e-30) d = 1e-30;
+  d = 1 / d;
+  let h = d;
+  
+  for (let m = 1; m <= maxIterations; m++) {
+    const m2 = 2 * m;
+    let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < 1e-30) d = 1e-30;
+    c = 1 + aa / c;
+    if (Math.abs(c) < 1e-30) c = 1e-30;
+    d = 1 / d;
+    h *= d * c;
+    
+    aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < 1e-30) d = 1e-30;
+    c = 1 + aa / c;
+    if (Math.abs(c) < 1e-30) c = 1e-30;
+    d = 1 / d;
+    const del = d * c;
+    h *= del;
+    
+    if (Math.abs(del - 1) < epsilon) break;
+  }
+  
+  return h;
 };
 
 // Enhanced analysis function following R script logic

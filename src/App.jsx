@@ -235,19 +235,19 @@ function App() {
             className={`tab ${activeTab === 'data' ? 'active' : ''}`}
             onClick={() => setActiveTab('data')}
           >
-            Data
+            <span className="step-number">1</span> Data
           </button>
           <button 
             className={`tab ${activeTab === 'analysis' ? 'active' : ''}`}
             onClick={() => setActiveTab('analysis')}
           >
-            Analysis
+            <span className="step-number">2</span> Analysis
           </button>
           <button 
             className={`tab ${activeTab === 'plot' ? 'active' : ''}`}
             onClick={() => setActiveTab('plot')}
           >
-            Plot
+            <span className="step-number">3</span> Plot
           </button>
         </div>
         

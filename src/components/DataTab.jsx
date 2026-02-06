@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const ROWS_PER_PAGE = 10;
+
 const DataTab = ({
   rawData,
   selectedData,
@@ -23,7 +25,7 @@ const DataTab = ({
   onDownload,
   onReset
 }) => {
-  const [showCleaning, setShowCleaning] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Get variable lists
   const getVariableLists = () => {
@@ -63,24 +65,33 @@ const DataTab = ({
     });
   };
 
-  // Data preview
+  // Data preview with pagination
   const getDataPreview = () => {
     const data = processedData || selectedData || rawData;
     if (!data || data.length === 0) return null;
     
     const headers = Object.keys(data[0]);
-    const rows = data.slice(0, 10); // Show first 10 rows
+    const totalRows = data.length;
+    const totalPages = Math.ceil(totalRows / ROWS_PER_PAGE);
+    const startIdx = (currentPage - 1) * ROWS_PER_PAGE;
+    const endIdx = startIdx + ROWS_PER_PAGE;
+    const rows = data.slice(startIdx, endIdx);
     
-    return { headers, rows, totalRows: data.length };
+    return { headers, rows, totalRows, totalPages, startIdx, endIdx };
   };
 
   const dataPreview = getDataPreview();
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+  };
 
   return (
     <div className="data-tab">
       <div className="sidebar">
         {/* File Upload Section */}
         <div className="section">
+          <h4>Upload Data</h4>
           <div className="file-input-container">
             <input
               ref={fileInputRef}
@@ -104,177 +115,187 @@ const DataTab = ({
         </div>
 
         {/* Variable Selection */}
-        {rawData && !confirmedVars && (
-          <div className="section">
-            {optionalVars.length > 0 && (
-              <div className="var-controls">
-                <button className="btn btn-sm" onClick={handleSelectAll}>
-                  Select All
-                </button>
-                <button className="btn btn-sm" onClick={handleSelectNone}>
-                  Clear All
-                </button>
-              </div>
-            )}
-            
-            {requiredVars.length > 0 && (
-              <div className="var-group">
-                <strong>Required Variables (cannot uncheck):</strong>
-                {requiredVars.map(var_ => (
-                  <label key={var_} className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={true}
-                      disabled={true}
-                    />
-                    {var_}
-                  </label>
-                ))}
-              </div>
-            )}
-            
-            {optionalVars.length > 0 && (
-              <div className="var-group">
-                <strong>Optional Variables:</strong>
-                {optionalVars.map(var_ => (
-                  <label key={var_} className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={selectedVars.includes(var_)}
-                      onChange={(e) => handleVarChange(var_, e.target.checked)}
-                    />
-                    {var_}
-                  </label>
-                ))}
-              </div>
-            )}
-            
-            <button 
-              className={`btn ${isConfirmDisabled ? 'btn-disabled' : 'btn-primary'}`}
-              disabled={isConfirmDisabled}
-              onClick={onConfirmVars}
-            >
-              Confirm
-            </button>
-          </div>
-        )}
+        <div className="section">
+          <h4>
+            Select Variables 
+            <span className="tooltip-icon" title="These variables are required for data processing and AMP analysis.">ⓘ</span>
+          </h4>
+          {rawData && !confirmedVars ? (
+            <>
+              {optionalVars.length > 0 && (
+                <div className="var-controls">
+                  <button className="btn btn-sm" onClick={handleSelectAll}>
+                    Select All
+                  </button>
+                  <button className="btn btn-sm" onClick={handleSelectNone}>
+                    Clear All
+                  </button>
+                </div>
+              )}
+              
+              {requiredVars.length > 0 && (
+                <div className="var-group">
+                  <strong>Required Variables:</strong>
+                  {requiredVars.map(var_ => (
+                    <label key={var_} className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={true}
+                        disabled={true}
+                      />
+                      {var_}
+                    </label>
+                  ))}
+                </div>
+              )}
+              
+              {optionalVars.length > 0 && (
+                <div className="var-group">
+                  <strong>Optional Variables:</strong>
+                  {optionalVars.map(var_ => (
+                    <label key={var_} className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={selectedVars.includes(var_)}
+                        onChange={(e) => handleVarChange(var_, e.target.checked)}
+                      />
+                      {var_}
+                    </label>
+                  ))}
+                </div>
+              )}
+              
+              <button 
+                className={`btn ${isConfirmDisabled ? 'btn-disabled' : 'btn-primary'}`}
+                disabled={isConfirmDisabled}
+                onClick={onConfirmVars}
+              >
+                Confirm
+              </button>
+            </>
+          ) : (
+            <p className="section-placeholder">Upload data to select variables</p>
+          )}
+        </div>
 
         {/* Format Selection */}
-        {confirmedVars && (
-          <div className="section">
-            <label>Choose a format to convert your data:</label>
-            <div className="radio-group">
-              <label>
-                <input
-                  type="radio"
-                  value="Wide"
-                  checked={format === 'Wide'}
-                  onChange={(e) => setFormat(e.target.value)}
-                />
-                Wide format
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  value="Long"
-                  checked={format === 'Long'}
-                  onChange={(e) => setFormat(e.target.value)}
-                />
-                Long format
-              </label>
-            </div>
-            <p className="help-text">Note: This step is required for further analyses.</p>
-            <button 
-              className={`btn ${isProcessDisabled ? 'btn-disabled' : 'btn-primary'}`}
-              disabled={isProcessDisabled}
-              onClick={onProcessData}
-            >
-              Convert
-            </button>
-          </div>
-        )}
+        <div className="section">
+          <h4>
+            Convert Data Format 
+            <span className="tooltip-icon" title="Choose the output format used for analysis and visualization.">ⓘ</span>
+          </h4>
+          {confirmedVars ? (
+            <>
+              <div className="radio-group">
+                <label>
+                  <input
+                    type="radio"
+                    value="Wide"
+                    checked={format === 'Wide'}
+                    onChange={(e) => setFormat(e.target.value)}
+                  />
+                  Wide format
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    value="Long"
+                    checked={format === 'Long'}
+                    onChange={(e) => setFormat(e.target.value)}
+                  />
+                  Long format
+                </label>
+              </div>
+              <button 
+                className={`btn ${isProcessDisabled ? 'btn-disabled' : 'btn-primary'}`}
+                disabled={isProcessDisabled}
+                onClick={onProcessData}
+              >
+                Convert
+              </button>
+            </>
+          ) : (
+            <p className="section-placeholder">Confirm variables to convert data format</p>
+          )}
+        </div>
 
         {/* Data Cleaning Section */}
-        {dataReshaped && (
-          <div className="section">
-            <h4>Optional: Data Cleaning</h4>
-            <button 
-              className="btn btn-secondary"
-              onClick={() => setShowCleaning(!showCleaning)}
-            >
-              Data Cleaning Method
-            </button>
-            
-            {showCleaning && (
-              <div className="cleaning-options">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={cleaningOptions.removeIncompleteResponses}
-                    onChange={(e) => handleCleaningOptionChange('removeIncompleteResponses', e.target.checked)}
-                  />
-                  Remove Incomplete Responses
-                </label>
-                <p className="help-text">Removes rows where Status is not 0 and Progress is not 100%</p>
-                
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={cleaningOptions.removeLowQualResponses}
-                    onChange={(e) => handleCleaningOptionChange('removeLowQualResponses', e.target.checked)}
-                  />
-                  Remove Low Quality Responses
-                </label>
-                <p className="help-text">Removes participants who select the same option for all trials</p>
-                
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={cleaningOptions.participantIqr}
-                    onChange={(e) => handleCleaningOptionChange('participantIqr', e.target.checked)}
-                  />
-                  Remove Participants by IQR Method
-                </label>
-                <p className="help-text">Removes outliers based on the Interquartile Range method applied to Duration</p>
-                
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={cleaningOptions.participantCustom}
-                    onChange={(e) => handleCleaningOptionChange('participantCustom', e.target.checked)}
-                  />
-                  Remove Participants by Custom Value
-                </label>
-                <p className="help-text">Removes participants based on custom Duration thresholds</p>
-                
-                {cleaningOptions.participantCustom && (
-                  <div className="threshold-inputs">
-                    <label>
-                      Define Duration Threshold (lower bound):
-                      <input
-                        type="number"
-                        value={cleaningOptions.thresholdLower}
-                        onChange={(e) => handleCleaningOptionChange('thresholdLower', parseFloat(e.target.value) || 0)}
-                      />
-                    </label>
-                    <label>
-                      Define Duration Threshold (upper bound):
-                      <input
-                        type="number"
-                        value={cleaningOptions.thresholdUpper}
-                        onChange={(e) => handleCleaningOptionChange('thresholdUpper', parseFloat(e.target.value) || 0)}
-                      />
-                    </label>
-                  </div>
-                )}
-                
-                <button className="btn btn-primary" onClick={onApplyCleaning}>
-                  Apply
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="section">
+          <h4>
+            Clean Data (Optional) 
+            <span className="tooltip-icon" title="These steps help remove incomplete or invalid data. You can skip this if your data is already clean.">ⓘ</span>
+          </h4>
+          {dataReshaped ? (
+            <>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={cleaningOptions.removeIncompleteResponses}
+                  onChange={(e) => handleCleaningOptionChange('removeIncompleteResponses', e.target.checked)}
+                />
+                Remove Incomplete Responses
+              </label>
+              <p className="help-text">Removes rows where Status is not 0 and Progress is not 100%</p>
+              
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={cleaningOptions.removeLowQualResponses}
+                  onChange={(e) => handleCleaningOptionChange('removeLowQualResponses', e.target.checked)}
+                />
+                Remove Low Quality Responses
+              </label>
+              <p className="help-text">Removes participants who select the same option for all trials</p>
+              
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={cleaningOptions.participantIqr}
+                  onChange={(e) => handleCleaningOptionChange('participantIqr', e.target.checked)}
+                />
+                Remove Participants by IQR Method
+              </label>
+              <p className="help-text">Removes outliers based on the Interquartile Range method applied to Duration</p>
+              
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={cleaningOptions.participantCustom}
+                  onChange={(e) => handleCleaningOptionChange('participantCustom', e.target.checked)}
+                />
+                Remove Participants by Custom Value
+              </label>
+              <p className="help-text">Removes participants based on custom Duration thresholds</p>
+              
+              {cleaningOptions.participantCustom && (
+                <div className="threshold-inputs">
+                  <label>
+                    Define Duration Threshold (lower bound):
+                    <input
+                      type="number"
+                      value={cleaningOptions.thresholdLower}
+                      onChange={(e) => handleCleaningOptionChange('thresholdLower', parseFloat(e.target.value) || 0)}
+                    />
+                  </label>
+                  <label>
+                    Define Duration Threshold (upper bound):
+                    <input
+                      type="number"
+                      value={cleaningOptions.thresholdUpper}
+                      onChange={(e) => handleCleaningOptionChange('thresholdUpper', parseFloat(e.target.value) || 0)}
+                    />
+                  </label>
+                </div>
+              )}
+              
+              <button className="btn btn-primary" onClick={onApplyCleaning}>
+                Apply Cleaning
+              </button>
+            </>
+          ) : (
+            <p className="section-placeholder">Convert data format to enable data cleaning</p>
+          )}
+        </div>
 
         {/* Download and Reset */}
         <div className="section">
@@ -297,7 +318,28 @@ const DataTab = ({
         {dataPreview ? (
           <div className="data-preview">
             <div className="data-info">
-              <p>Showing first 10 rows of {dataPreview.totalRows} total rows</p>
+              <p>Showing rows {dataPreview.startIdx + 1}-{Math.min(dataPreview.endIdx, dataPreview.totalRows)} of {dataPreview.totalRows} total rows</p>
+              {dataPreview.totalPages > 1 && (
+                <div className="pagination">
+                  <button 
+                    className="btn btn-sm" 
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+                  <span className="page-info">
+                    Page {currentPage} of {dataPreview.totalPages}
+                  </span>
+                  <button 
+                    className="btn btn-sm" 
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === dataPreview.totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
             <div className="table-container">
               <table className="data-table">

@@ -104,10 +104,10 @@ const AnalysisTab = ({
             <thead>
               <tr>
                 <th>ID</th>
-                <th>k_0</th>
-                <th>d_0</th>
-                <th>k_1</th>
-                <th>d_1</th>
+                <th>k_control</th>
+                <th>d_control</th>
+                <th>k_target</th>
+                <th>d_target</th>
                 <th>Target Ratio</th>
                 <th>Control Ratio</th>
               </tr>
@@ -204,6 +204,7 @@ const AnalysisTab = ({
     <div className="analysis-tab">
       <div className="sidebar">
         <div className="section">
+          <h4>Analysis Settings</h4>
           <label>
             Paradigm:
             <select 
@@ -229,6 +230,25 @@ const AnalysisTab = ({
         </div>
 
         <div className="section">
+          <h4>Conditions</h4>
+          <div className="condition-info">
+            <p>
+              <strong>Target condition 
+                <span className="tooltip-icon" title="Trials where the target stimulus is presented and evaluated.">ⓘ</span>
+              </strong>
+            </p>
+            <p className="help-text">Trials where the target stimulus is presented and evaluated.</p>
+            
+            <p>
+              <strong>Control condition 
+                <span className="tooltip-icon" title="Trials using a neutral or comparison stimulus to serve as a baseline.">ⓘ</span>
+              </strong>
+            </p>
+            <p className="help-text">Trials using a neutral or comparison stimulus to serve as a baseline.</p>
+          </div>
+        </div>
+
+        <div className="section">
           <button 
             className="btn btn-primary"
             onClick={handleGenerateAnalysis}
@@ -240,14 +260,14 @@ const AnalysisTab = ({
 
       <div className="main-panel">
         <div className="analysis-content">
-          <div className="summary-section">
-            <h4>Summary</h4>
-            {renderSummary()}
-          </div>
-
           <div className="analysis-section">
             <h4>Statistical Analysis</h4>
             {renderAnalysis()}
+          </div>
+
+          <div className="summary-section">
+            <h4>Summary</h4>
+            {renderSummary()}
           </div>
         </div>
       </div>
