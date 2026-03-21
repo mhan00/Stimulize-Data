@@ -118,7 +118,7 @@ const DataTab = ({
         <div className="section">
           <h4>
             Select Variables 
-            <span className="tooltip-icon" title="These variables are required for data processing and AMP analysis.">ⓘ</span>
+            <span className="tooltip-icon" data-tooltip="These variables are required for data processing and AMP analysis.">ⓘ</span>
           </h4>
           {rawData && !confirmedVars ? (
             <>
@@ -182,7 +182,7 @@ const DataTab = ({
         <div className="section">
           <h4>
             Convert Data Format 
-            <span className="tooltip-icon" title="Choose the output format used for analysis and visualization.">ⓘ</span>
+            <span className="tooltip-icon" data-tooltip="Choose the output format used for analysis and visualization.">ⓘ</span>
           </h4>
           {confirmedVars ? (
             <>
@@ -223,7 +223,7 @@ const DataTab = ({
         <div className="section">
           <h4>
             Clean Data (Optional) 
-            <span className="tooltip-icon" title="These steps help remove incomplete or invalid data. You can skip this if your data is already clean.">ⓘ</span>
+            <span className="tooltip-icon" data-tooltip="These steps help remove incomplete or invalid data. You can skip this if your data is already clean.">ⓘ</span>
           </h4>
           {dataReshaped ? (
             <>
@@ -235,7 +235,7 @@ const DataTab = ({
                 />
                 Remove Incomplete Responses
               </label>
-              <p className="help-text">Removes rows where Status is not 0 and Progress is not 100%</p>
+              <p className="help-text">Removes rows where Progress is not 100%</p>
               
               <label className="checkbox-label">
                 <input

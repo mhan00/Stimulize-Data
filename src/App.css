@@ -123,6 +123,7 @@
 }
 
 .tooltip-icon {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -135,6 +136,35 @@
   font-weight: bold;
   cursor: help;
   font-style: normal;
+  flex-shrink: 0;
+}
+
+.tooltip-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: normal;
+  font-style: normal;
+  white-space: normal;
+  width: 220px;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 9999;
+  line-height: 1.4;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.tooltip-icon:hover::after {
+  opacity: 1;
 }
 
 .section-placeholder {
@@ -320,11 +350,11 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus {
 
 /* Data preview */
 .data-preview {
-  height: 600px;
   border: 1px solid #ddd;
   border-radius: 4px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .data-info {
@@ -357,6 +387,7 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus {
   overflow: auto;
   flex: 1;
   min-height: 0;
+  max-height: 480px;
 }
 
 .data-table, .stats-table {

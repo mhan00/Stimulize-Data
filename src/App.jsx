@@ -67,14 +67,12 @@ function App() {
           let data = results.data;
           
           // Add ID column if it doesn't exist (following R script logic)
+          // Qualtrics exports 2 metadata rows after the header; remove them and assign IDs
           if (!data[0]?.ID) {
-            // Create ID column with NA for first row, then sequential numbers
-            data = data.map((row, index) => ({
-              ID: index === 0 ? null : index, // First row gets null, others get sequential
+            data = data.slice(2).map((row, index) => ({
+              ID: String(index + 1),
               ...row
             }));
-            // Remove the first row (following R script logic)
-            data = data.slice(1);
           }
 
           // Remove ignored variables

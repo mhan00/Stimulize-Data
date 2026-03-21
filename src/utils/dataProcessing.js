@@ -190,22 +190,14 @@ export const applyDataCleaning = (data, cleaningOptions, format = 'Wide') => {
   let cleanedData = [...data];
   const originalCount = cleanedData.length;
 
-  // Remove incomplete responses
+  // Remove incomplete responses (keep only rows where Progress == 100)
   if (cleaningOptions.removeIncompleteResponses) {
     const beforeCount = cleanedData.length;
     cleanedData = cleanedData.filter(row => {
-      // Check for Status column (could be 'Status' or 'status')
-      const statusKey = Object.keys(row).find(key => key.toLowerCase() === 'status');
       const progressKey = Object.keys(row).find(key => key.toLowerCase() === 'progress');
-      
-      if (!statusKey || !progressKey) {
-        // If Status/Progress columns don't exist, keep the row
-        return true;
-      }
-      
-      const status = parseFloat(row[statusKey]);
+      if (!progressKey) return true; // If Progress column doesn't exist, keep the row
       const progress = parseFloat(row[progressKey]);
-      return !isNaN(status) && !isNaN(progress) && status === 0 && progress === 100;
+      return !isNaN(progress) && progress === 100;
     });
     console.log(`Incomplete responses filter: ${beforeCount} -> ${cleanedData.length} rows`);
   }
@@ -453,7 +445,7 @@ const incompleteBeta = (x, a, b) => {
   const lbeta = lnGamma(a) + lnGamma(b) - lnGamma(a + b);
   const front = Math.exp(Math.log(x) * a + Math.log(1 - x) * b - lbeta) / a;
   const f = continuedFraction(a, b, x);
-  return front * f / a;
+  return front * f;
 };
 
 // Log gamma function approximation
@@ -554,31 +546,32 @@ export const performAnalysis = (longFormatData) => {
       });
     });
 
-    // Pivot wider to get k_0, d_0, k_1, d_1 columns
+    // Pivot wider to get k_control, d_control, k_target, d_target columns
+    // ShuffleResult: 1 = target condition, 0 = control condition
     const pivoted = {};
     table1.forEach(row => {
       if (!pivoted[row.ID]) {
         pivoted[row.ID] = { ID: row.ID };
       }
-      
-      const colName = `${row.sptResponse === 'k' ? 'k' : 'd'}_${row.ShuffleResult}`;
+      const condition = row.ShuffleResult === '1' || row.ShuffleResult === 1 ? 'target' : 'control';
+      const colName = `${row.sptResponse === 'k' ? 'k' : 'd'}_${condition}`;
       pivoted[row.ID][colName] = row.count;
     });
 
     // Convert to array and fill missing values with 0
     const table1clean = Object.values(pivoted).map(row => ({
       ID: row.ID,
-      k_0: row.k_0 || 0,
-      d_0: row.d_0 || 0,
-      k_1: row.k_1 || 0,
-      d_1: row.d_1 || 0
+      k_control: row.k_control || 0,
+      d_control: row.d_control || 0,
+      k_target: row.k_target || 0,
+      d_target: row.d_target || 0
     }));
 
-    // Calculate ratios (remove filter - moved to data cleaning)
+    // Calculate ratios
     const analysisData = table1clean.map(row => ({
       ...row,
-      target_ratio: row.k_1 / (row.k_1 + row.d_1),
-      control_ratio: row.k_0 / (row.k_0 + row.d_0)
+      target_ratio: row.k_target / (row.k_target + row.d_target),
+      control_ratio: row.k_control / (row.k_control + row.d_control)
     }));
 
     return {

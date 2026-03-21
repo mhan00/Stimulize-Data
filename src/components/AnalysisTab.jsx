@@ -116,12 +116,12 @@ const AnalysisTab = ({
               {summary.slice(0, 20).map((row, index) => (
                 <tr key={index}>
                   <td>{row.ID}</td>
-                  <td>{row.k_0}</td>
-                  <td>{row.d_0}</td>
-                  <td>{row.k_1}</td>
-                  <td>{row.d_1}</td>
-                  <td>{row.target_ratio ? row.target_ratio.toFixed(2) : 'N/A'}</td>
-                  <td>{row.control_ratio ? row.control_ratio.toFixed(2) : 'N/A'}</td>
+                  <td>{row.k_control}</td>
+                  <td>{row.d_control}</td>
+                  <td>{row.k_target}</td>
+                  <td>{row.d_target}</td>
+                  <td>{isNaN(row.target_ratio) ? 'N/A' : row.target_ratio.toFixed(2)}</td>
+                  <td>{isNaN(row.control_ratio) ? 'N/A' : row.control_ratio.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -234,14 +234,14 @@ const AnalysisTab = ({
           <div className="condition-info">
             <p>
               <strong>Target condition 
-                <span className="tooltip-icon" title="Trials where the target stimulus is presented and evaluated.">ⓘ</span>
+                <span className="tooltip-icon" data-tooltip="Trials where the target stimulus is presented and evaluated.">ⓘ</span>
               </strong>
             </p>
             <p className="help-text">Trials where the target stimulus is presented and evaluated.</p>
             
             <p>
               <strong>Control condition 
-                <span className="tooltip-icon" title="Trials using a neutral or comparison stimulus to serve as a baseline.">ⓘ</span>
+                <span className="tooltip-icon" data-tooltip="Trials using a neutral or comparison stimulus to serve as a baseline.">ⓘ</span>
               </strong>
             </p>
             <p className="help-text">Trials using a neutral or comparison stimulus to serve as a baseline.</p>
@@ -266,7 +266,7 @@ const AnalysisTab = ({
           </div>
 
           <div className="summary-section">
-            <h4>Summary</h4>
+            <h4>Summary Statistics</h4>
             {renderSummary()}
           </div>
         </div>
